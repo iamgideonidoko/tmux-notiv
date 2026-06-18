@@ -40,6 +40,10 @@ notiv_config_context_height() {
 	notiv_get_option "$(notiv_context_option_key "$1" "height")" ""
 }
 
+notiv_config_context_key() {
+	notiv_get_option "$(notiv_context_option_key "$1" "key")" ""
+}
+
 notiv_config_list_option_lines() {
 	tmux_cmd show-options -g 2>/dev/null || true
 }

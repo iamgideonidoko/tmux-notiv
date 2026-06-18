@@ -11,6 +11,9 @@ test_default_bindings_exist() {
 	mock_option_set "@notiv_notes_dir" "~/notes"
 	mock_option_set "@notiv_todo_dir" "~/todo"
 	mock_option_set "@notiv_git_dir" "~/src/project"
+	mock_option_set "@notiv_notes_key" "n"
+	mock_option_set "@notiv_todo_key" "t"
+	mock_option_set "@notiv_git_key" "g"
 
 	notiv_bindings
 
@@ -24,10 +27,10 @@ test_default_bindings_exist() {
 	test_teardown
 }
 
-test_config_override_works() {
+test_context_key_override_works() {
 	test_setup
 	mock_option_set "@notiv_notes_dir" "~/notes"
-	mock_option_set "@notiv_key_notes" "x"
+	mock_option_set "@notiv_notes_key" "x"
 
 	notiv_bindings
 
@@ -41,6 +44,8 @@ test_idempotency_does_not_duplicate_bindings() {
 	test_setup
 	mock_option_set "@notiv_notes_dir" "~/notes"
 	mock_option_set "@notiv_todo_dir" "~/todo"
+	mock_option_set "@notiv_notes_key" "n"
+	mock_option_set "@notiv_todo_key" "t"
 
 	notiv_bindings
 	notiv_bindings
@@ -55,9 +60,10 @@ test_idempotency_does_not_duplicate_bindings() {
 test_reload_rebinds_cleanly() {
 	test_setup
 	mock_option_set "@notiv_notes_dir" "~/notes"
+	mock_option_set "@notiv_notes_key" "n"
 
 	notiv_bindings
-	mock_option_set "@notiv_key_notes" "x"
+	mock_option_set "@notiv_notes_key" "x"
 	notiv_bindings_main reload
 
 	assert_eq "0" "$(mock_binding_count "notiv" "n")" "old notes key should be removed on reload"
@@ -66,21 +72,23 @@ test_reload_rebinds_cleanly() {
 	test_teardown
 }
 
-test_only_existing_contexts_are_bound() {
+test_only_contexts_with_keys_are_bound() {
 	test_setup
+	mock_option_set "@notiv_notes_dir" "~/notes"
 	mock_option_set "@notiv_todo_dir" "~/todo"
+	mock_option_set "@notiv_todo_key" "t"
 
 	notiv_bindings
 
-	assert_eq "0" "$(mock_binding_count "notiv" "n")" "notes should not be bound when context is missing"
-	assert_eq "1" "$(mock_binding_count "notiv" "t")" "todo should be bound when context exists"
-	assert_eq "0" "$(mock_binding_count "notiv" "g")" "git should not be bound when context is missing"
+	assert_eq "0" "$(mock_binding_count "notiv" "n")" "notes should not be bound without an explicit key"
+	assert_eq "1" "$(mock_binding_count "notiv" "t")" "todo should be bound when context and key exist"
+	assert_eq "0" "$(mock_binding_count "notiv" "g")" "git should not be bound without an explicit key"
 	test_teardown
 }
 
 test_default_bindings_exist
-test_config_override_works
+test_context_key_override_works
 test_idempotency_does_not_duplicate_bindings
 test_reload_rebinds_cleanly
-test_only_existing_contexts_are_bound
+test_only_contexts_with_keys_are_bound
 printf 'test_bindings: ok\n'

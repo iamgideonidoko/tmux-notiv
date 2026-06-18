@@ -55,7 +55,7 @@ EOF
 
 notiv_cli_list() {
 	local record
-	printf 'name\tdir\tcmd\twidth\theight\n'
+	printf 'name\tdir\tcmd\twidth\theight\tkey\n'
 	while IFS= read -r record; do
 		[ -n "$record" ] || continue
 		printf '%s\n' "$record"

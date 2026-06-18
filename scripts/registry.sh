@@ -49,13 +49,14 @@ EOF
 }
 
 notiv_registry_resolve() {
-	local target_name auto_register old_ifs entry entry_name entry_dir entry_cmd entry_width entry_height extra
-	local dir cmd width height
+	local target_name auto_register old_ifs entry entry_name entry_dir entry_cmd entry_width entry_height entry_key extra
+	local dir cmd width height key
 	target_name="$1"
 	dir=""
 	cmd=""
 	width=""
 	height=""
+	key=""
 	auto_register="$(notiv_config_auto_register)"
 
 	if [ -n "$auto_register" ]; then
@@ -65,7 +66,7 @@ notiv_registry_resolve() {
 			entry="$(notiv_trim "$entry")"
 			[ -n "$entry" ] || continue
 
-			IFS=':' read -r entry_name entry_dir entry_cmd entry_width entry_height extra <<EOF
+			IFS=':' read -r entry_name entry_dir entry_cmd entry_width entry_height entry_key extra <<EOF
 $entry
 EOF
 
@@ -74,6 +75,7 @@ EOF
 				cmd="$(notiv_trim "$entry_cmd")"
 				width="$(notiv_trim "$entry_width")"
 				height="$(notiv_trim "$entry_height")"
+				key="$(notiv_trim "$entry_key")"
 				break
 			fi
 		done
@@ -92,11 +94,15 @@ EOF
 	if [ -n "$(notiv_config_context_height "$target_name")" ]; then
 		height="$(notiv_config_context_height "$target_name")"
 	fi
+	if [ -n "$(notiv_config_context_key "$target_name")" ]; then
+		key="$(notiv_config_context_key "$target_name")"
+	fi
 
 	dir="$(notiv_expand_tmux_format "$dir")"
 	cmd="$(notiv_expand_tmux_format "$cmd")"
 	width="$(notiv_expand_tmux_format "$width")"
 	height="$(notiv_expand_tmux_format "$height")"
+	key="$(notiv_expand_tmux_format "$key")"
 	dir="$(notiv_expand_path "$dir")"
 	[ -n "$dir" ] || return 1
 
@@ -110,7 +116,7 @@ EOF
 		height="$(notiv_config_popup_height)"
 	fi
 
-	printf '%s\t%s\t%s\t%s\t%s\n' "$target_name" "$dir" "$cmd" "$width" "$height"
+	printf '%s\t%s\t%s\t%s\t%s\t%s\n' "$target_name" "$dir" "$cmd" "$width" "$height" "$key"
 }
 
 notiv_registry_list() {

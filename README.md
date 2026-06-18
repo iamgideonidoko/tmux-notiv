@@ -47,9 +47,6 @@ Default options:
 set -g @notiv_default_cmd 'nvim'
 set -g @notiv_popup_width '90%'
 set -g @notiv_popup_height '90%'
-set -g @notiv_key_notes 'n'
-set -g @notiv_key_todo 't'
-set -g @notiv_key_git 'g'
 set -g @notiv_key_list 'l'
 set -g @notiv_key_picker 'p'
 ```
@@ -58,9 +55,12 @@ Register contexts one by one:
 
 ```tmux
 set -g @notiv_notes_dir '~/notes'
+set -g @notiv_notes_key 'n'
 set -g @notiv_todo_dir '~/todo'
+set -g @notiv_todo_key 't'
 set -g @notiv_git_dir '#{pane_current_path}'
 set -g @notiv_git_cmd 'lazygit'
+set -g @notiv_git_key 'g'
 set -g @notiv_logs_dir '~/logs'
 set -g @notiv_logs_cmd 'tail -f app.log'
 set -g @notiv_logs_height '75%'
@@ -69,7 +69,7 @@ set -g @notiv_logs_height '75%'
 Or auto-register several contexts at once:
 
 ```tmux
-set -g @notiv_auto_register 'notes:~/notes:nvim,todo:~/todo:nvim,git:~/src/project:lazygit:95%:95%'
+set -g @notiv_auto_register 'notes:~/notes:nvim:::n,todo:~/todo:nvim:::t,git:~/src/project:lazygit:95%:95%:g'
 ```
 
 Per-context overrides use:
@@ -78,6 +78,7 @@ Per-context overrides use:
 - `@notiv_<name>_cmd`
 - `@notiv_<name>_width`
 - `@notiv_<name>_height`
+- `@notiv_<name>_key`
 
 Explicit per-context options override values coming from `@notiv_auto_register`.
 
@@ -89,23 +90,30 @@ Default bindings:
 
 | Sequence          | Action                                       |
 | ----------------- | -------------------------------------------- |
-| `prefix + n`, `n` | Open `notes` when the `notes` context exists |
-| `prefix + n`, `t` | Open `todo` when the `todo` context exists   |
-| `prefix + n`, `g` | Open `git` when the `git` context exists     |
 | `prefix + n`, `l` | Run `notiv list`                             |
 | `prefix + n`, `p` | Open the notiv picker                        |
 
-Context bindings are only registered for contexts that exist. For example, if `@notiv_git_dir` is not configured and `git` is not present in `@notiv_auto_register`, `prefix + n`, `g` is not bound.
+Context bindings are only registered when both the context exists and it has an explicit key. For example, `notes` is only bound when `@notiv_notes_dir` (or `@notiv_auto_register`) exists and `@notiv_notes_key` is set, or the auto-register record includes a key field.
 
-Override the second key in the namespace with tmux options:
+Configure per-context keys with tmux options:
 
 ```tmux
-set -g @notiv_key_notes 'o'
-set -g @notiv_key_todo 'd'
-set -g @notiv_key_git 'r'
+set -g @notiv_notes_key 'o'
+set -g @notiv_todo_key 'd'
+set -g @notiv_git_key 'r'
 set -g @notiv_key_list 'L'
 set -g @notiv_key_picker 'P'
 ```
+
+With that configuration:
+
+| Sequence | Action |
+| --- | --- |
+| `prefix + n`, `o` | Open `notes` |
+| `prefix + n`, `d` | Open `todo` |
+| `prefix + n`, `r` | Open `git` |
+| `prefix + n`, `L` | Run `notiv list` |
+| `prefix + n`, `P` | Open the notiv picker |
 
 Reload bindings after changing key options:
 
@@ -143,12 +151,12 @@ Command summary:
 
 ```tmux
 set -g @notiv_notes_dir '~/notes'
+set -g @notiv_notes_key 'n'
 set -g @notiv_todo_dir '~/todo'
+set -g @notiv_todo_key 't'
 set -g @notiv_git_dir '#{pane_current_path}'
 set -g @notiv_git_cmd 'lazygit'
-set -g @notiv_key_notes 'n'
-set -g @notiv_key_todo 't'
-set -g @notiv_key_git 'g'
+set -g @notiv_git_key 'g'
 set -g @notiv_key_list 'l'
 set -g @notiv_key_picker 'p'
 ```

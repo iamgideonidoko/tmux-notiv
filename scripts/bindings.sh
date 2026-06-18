@@ -8,18 +8,6 @@ NOTIV_SCRIPT_BINDINGS_SOURCED=1
 # shellcheck source=./registry.sh
 . "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/registry.sh"
 
-notiv_config_key_notes() {
-	notiv_get_option "@notiv_key_notes" "n"
-}
-
-notiv_config_key_todo() {
-	notiv_get_option "@notiv_key_todo" "t"
-}
-
-notiv_config_key_git() {
-	notiv_get_option "@notiv_key_git" "g"
-}
-
 notiv_config_key_list() {
 	notiv_get_option "@notiv_key_list" "l"
 }
@@ -50,11 +38,19 @@ notiv_bindings_record_key() {
 }
 
 notiv_bindings_current_keys() {
-	local keys
+	local keys record key
 	keys=""
-	keys="$(notiv_bindings_record_key "$keys" "$(notiv_config_key_notes)")"
-	keys="$(notiv_bindings_record_key "$keys" "$(notiv_config_key_todo)")"
-	keys="$(notiv_bindings_record_key "$keys" "$(notiv_config_key_git)")"
+
+	while IFS= read -r record; do
+		[ -n "$record" ] || continue
+		key="$(notiv_record_field "$record" 6 2>/dev/null || true)"
+		key="$(notiv_trim "$key")"
+		[ -n "$key" ] || continue
+		keys="$(notiv_bindings_record_key "$keys" "$key")"
+	done <<EOF
+$(notiv_registry_list)
+EOF
+
 	keys="$(notiv_bindings_record_key "$keys" "$(notiv_config_key_list)")"
 	keys="$(notiv_bindings_record_key "$keys" "$(notiv_config_key_picker)")"
 	printf '%s\n' "$keys"
@@ -111,26 +107,27 @@ notiv_bindings_bind_action() {
 }
 
 notiv_bindings() {
-	local bound_keys notes_key todo_key git_key list_key picker_key
+	local bound_keys list_key picker_key record context_name context_key
 	bound_keys=""
-	notes_key="$(notiv_config_key_notes)"
-	todo_key="$(notiv_config_key_todo)"
-	git_key="$(notiv_config_key_git)"
 	list_key="$(notiv_config_key_list)"
 	picker_key="$(notiv_config_key_picker)"
 
 	notiv_bindings_clear
 	tmux_cmd bind-key -T prefix n switch-client -T notiv >/dev/null
 
-	if notiv_bindings_bind_context "notes" "$notes_key"; then
-		bound_keys="$(notiv_bindings_record_key "$bound_keys" "$notes_key")"
-	fi
-	if notiv_bindings_bind_context "todo" "$todo_key"; then
-		bound_keys="$(notiv_bindings_record_key "$bound_keys" "$todo_key")"
-	fi
-	if notiv_bindings_bind_context "git" "$git_key"; then
-		bound_keys="$(notiv_bindings_record_key "$bound_keys" "$git_key")"
-	fi
+	while IFS= read -r record; do
+		[ -n "$record" ] || continue
+		context_name="$(notiv_record_field "$record" 1)"
+		context_key="$(notiv_record_field "$record" 6 2>/dev/null || true)"
+		context_key="$(notiv_trim "$context_key")"
+		[ -n "$context_key" ] || continue
+
+		if notiv_bindings_bind_context "$context_name" "$context_key"; then
+			bound_keys="$(notiv_bindings_record_key "$bound_keys" "$context_key")"
+		fi
+	done <<EOF
+$(notiv_registry_list)
+EOF
 
 	notiv_bindings_bind_action "$list_key" "list"
 	bound_keys="$(notiv_bindings_record_key "$bound_keys" "$list_key")"
