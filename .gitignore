@@ -1,0 +1,39 @@
+# os/editor noise
+.DS_Store
+*.swp
+*.swo
+*~
+.vscode/
+.idea/
+
+# logs
+*.log
+
+# debug logging
+logs/
+
+# test artifacts
+test-output/
+tmp/
+*.tmp
+
+# local tmux state
+*.session
+*.state
+
+# tmux sessions
+.tmux-test/
+
+# shell/tooling cache
+.direnv/
+.env
+.env.local
+
+# misc
+dist/
+build/
+release/
+
+# coverage
+coverage/
+*.lcov
