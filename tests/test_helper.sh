@@ -10,6 +10,7 @@ TEST_TMP_DIR=""
 MOCK_TMUX_LOG=""
 MOCK_TMUX_OPTIONS_FILE=""
 MOCK_TMUX_SESSIONS_FILE=""
+MOCK_TMUX_BINDINGS_FILE=""
 MOCK_CURRENT_CLIENT="client-1"
 
 test_setup() {
@@ -17,9 +18,11 @@ test_setup() {
 	MOCK_TMUX_LOG="$TEST_TMP_DIR/tmux.log"
 	MOCK_TMUX_OPTIONS_FILE="$TEST_TMP_DIR/options.txt"
 	MOCK_TMUX_SESSIONS_FILE="$TEST_TMP_DIR/sessions.txt"
+	MOCK_TMUX_BINDINGS_FILE="$TEST_TMP_DIR/bindings.txt"
 	: >"$MOCK_TMUX_LOG"
 	: >"$MOCK_TMUX_OPTIONS_FILE"
 	: >"$MOCK_TMUX_SESSIONS_FILE"
+	: >"$MOCK_TMUX_BINDINGS_FILE"
 	MOCK_CURRENT_CLIENT="client-1"
 }
 
@@ -99,6 +102,82 @@ mock_options_dump() {
 	done <"$MOCK_TMUX_OPTIONS_FILE"
 }
 
+mock_binding_set() {
+	local table key command temp_file line
+	table="$1"
+	key="$2"
+	command="$3"
+	temp_file="$TEST_TMP_DIR/bindings.tmp"
+	: >"$temp_file"
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$table|$key|"*)
+				;;
+			*)
+				printf '%s\n' "$line" >>"$temp_file"
+				;;
+		esac
+	done <"$MOCK_TMUX_BINDINGS_FILE"
+
+	printf '%s|%s|%s\n' "$table" "$key" "$command" >>"$temp_file"
+	mv "$temp_file" "$MOCK_TMUX_BINDINGS_FILE"
+}
+
+mock_binding_unset() {
+	local table key temp_file line
+	table="$1"
+	key="$2"
+	temp_file="$TEST_TMP_DIR/bindings.tmp"
+	: >"$temp_file"
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$table|$key|"*)
+				;;
+			*)
+				printf '%s\n' "$line" >>"$temp_file"
+				;;
+		esac
+	done <"$MOCK_TMUX_BINDINGS_FILE"
+
+	mv "$temp_file" "$MOCK_TMUX_BINDINGS_FILE"
+}
+
+mock_binding_count() {
+	local table key count line
+	table="$1"
+	key="$2"
+	count=0
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$table|$key|"*)
+				count=$((count + 1))
+				;;
+		esac
+	done <"$MOCK_TMUX_BINDINGS_FILE"
+
+	printf '%s\n' "$count"
+}
+
+mock_binding_command() {
+	local table key line
+	table="$1"
+	key="$2"
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$table|$key|"*)
+				printf '%s\n' "${line#"$table|$key|"}"
+				return 0
+				;;
+		esac
+	done <"$MOCK_TMUX_BINDINGS_FILE"
+
+	return 1
+}
+
 notiv_tmux_cmd_mock() {
 	local command_name
 	command_name="$1"
@@ -173,6 +252,37 @@ notiv_tmux_cmd_mock() {
 				return 0
 			fi
 			return 1
+			;;
+		bind-key)
+			local table key command
+			table="prefix"
+			if [ "$1" = "-T" ]; then
+				table="$2"
+				key="$3"
+				shift 3 || true
+			else
+				key="$1"
+				shift || true
+			fi
+			command="$*"
+			mock_binding_set "$table" "$key" "$command"
+			return 0
+			;;
+		unbind-key)
+			local table key
+			table="prefix"
+			if [ "$1" = "-T" ]; then
+				table="$2"
+				key="$3"
+			else
+				key="$1"
+			fi
+			mock_binding_unset "$table" "$key"
+			return 0
+			;;
+		display-menu)
+			printf '%s\n' "$*" >>"$TEST_TMP_DIR/display-menu.log"
+			return 0
 			;;
 	esac
 

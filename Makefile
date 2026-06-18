@@ -3,6 +3,7 @@ SHELL := /usr/bin/env bash
 FILES := \
 	notiv \
 	notiv.tmux \
+	scripts/bindings.sh \
 	scripts/cli.sh \
 	scripts/config.sh \
 	scripts/registry.sh \
@@ -14,6 +15,7 @@ FILES := \
 	lib/util.sh \
 	tests/test_helper.sh \
 	tests/test_integration.sh \
+	tests/test_bindings.sh \
 	tests/test_popup.sh \
 	tests/test_registry.sh \
 	tests/test_session.sh \
@@ -30,7 +32,7 @@ syntax:
 	@echo "syntax: ok"
 
 unit:
-	@for test_file in tests/test_session.sh tests/test_registry.sh tests/test_popup.sh tests/test_toggle.sh; do \
+	@for test_file in tests/test_session.sh tests/test_registry.sh tests/test_popup.sh tests/test_toggle.sh tests/test_bindings.sh; do \
 		bash "$$test_file"; \
 	done
 	@echo "unit: ok"

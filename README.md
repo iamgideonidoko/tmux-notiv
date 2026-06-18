@@ -12,6 +12,13 @@
 
 ## Install
 
+### Requirements
+
+- tmux 3.2 or newer
+- Bash
+
+`tmux-notiv` depends on `display-popup`, so tmux 3.2+ is required.
+
 ### TPM
 
 Add the plugin to your `~/.tmux.conf`:
@@ -40,6 +47,11 @@ Default options:
 set -g @notiv_default_cmd 'nvim'
 set -g @notiv_popup_width '90%'
 set -g @notiv_popup_height '90%'
+set -g @notiv_key_notes 'n'
+set -g @notiv_key_todo 't'
+set -g @notiv_key_git 'g'
+set -g @notiv_key_list 'l'
+set -g @notiv_key_picker 'p'
 ```
 
 Register contexts one by one:
@@ -69,6 +81,38 @@ Per-context overrides use:
 
 Explicit per-context options override values coming from `@notiv_auto_register`.
 
+## Namespaced keybindings
+
+`tmux-notiv` registers a dedicated `notiv` key table behind `prefix + n`.
+
+Default bindings:
+
+| Sequence          | Action                                       |
+| ----------------- | -------------------------------------------- |
+| `prefix + n`, `n` | Open `notes` when the `notes` context exists |
+| `prefix + n`, `t` | Open `todo` when the `todo` context exists   |
+| `prefix + n`, `g` | Open `git` when the `git` context exists     |
+| `prefix + n`, `l` | Run `notiv list`                             |
+| `prefix + n`, `p` | Open the notiv picker                        |
+
+Context bindings are only registered for contexts that exist. For example, if `@notiv_git_dir` is not configured and `git` is not present in `@notiv_auto_register`, `prefix + n`, `g` is not bound.
+
+Override the second key in the namespace with tmux options:
+
+```tmux
+set -g @notiv_key_notes 'o'
+set -g @notiv_key_todo 'd'
+set -g @notiv_key_git 'r'
+set -g @notiv_key_list 'L'
+set -g @notiv_key_picker 'P'
+```
+
+Reload bindings after changing key options:
+
+```sh
+~/.tmux/plugins/tmux-notiv/notiv reload bindings
+```
+
 ## Usage
 
 The plugin ships a standalone CLI wrapper:
@@ -77,32 +121,36 @@ The plugin ships a standalone CLI wrapper:
 ~/.tmux/plugins/tmux-notiv/notiv toggle notes
 ~/.tmux/plugins/tmux-notiv/notiv open git
 ~/.tmux/plugins/tmux-notiv/notiv close notes
+~/.tmux/plugins/tmux-notiv/notiv picker
 ~/.tmux/plugins/tmux-notiv/notiv list
 ~/.tmux/plugins/tmux-notiv/notiv reload
+~/.tmux/plugins/tmux-notiv/notiv reload bindings
 ```
 
 Command summary:
 
-| Command               | Behavior                                                          |
-| --------------------- | ----------------------------------------------------------------- |
-| `notiv toggle <name>` | Ensure the scratch session exists, then open or refocus the popup |
-| `notiv open <name>`   | Same as `toggle`, but named explicitly for scripts and bindings   |
-| `notiv close <name>`  | Close the popup on the last known client for that context         |
-| `notiv list`          | Print all resolved contexts and effective settings                |
-| `notiv reload`        | Re-parse current tmux options and refresh the cached context list |
+| Command                 | Behavior                                                          |
+| ----------------------- | ----------------------------------------------------------------- |
+| `notiv toggle <name>`   | Ensure the scratch session exists, then open or refocus the popup |
+| `notiv open <name>`     | Same as `toggle`, but named explicitly for scripts and bindings   |
+| `notiv close <name>`    | Close the popup on the last known client for that context         |
+| `notiv picker`          | Open a tmux menu for selecting a registered context               |
+| `notiv list`            | Print all resolved contexts and effective settings                |
+| `notiv reload`          | Refresh the registry and re-register namespace bindings           |
+| `notiv reload bindings` | Clear and rebuild the `prefix + n` notiv bindings                 |
 
-## Example tmux bindings
+## Example tmux config
 
 ```tmux
 set -g @notiv_notes_dir '~/notes'
 set -g @notiv_todo_dir '~/todo'
 set -g @notiv_git_dir '#{pane_current_path}'
 set -g @notiv_git_cmd 'lazygit'
-
-bind-key n run-shell '~/.tmux/plugins/tmux-notiv/notiv toggle notes'
-bind-key t run-shell '~/.tmux/plugins/tmux-notiv/notiv toggle todo'
-bind-key g run-shell '~/.tmux/plugins/tmux-notiv/notiv toggle git'
-bind-key N run-shell '~/.tmux/plugins/tmux-notiv/notiv list'
+set -g @notiv_key_notes 'n'
+set -g @notiv_key_todo 't'
+set -g @notiv_key_git 'g'
+set -g @notiv_key_list 'l'
+set -g @notiv_key_picker 'p'
 ```
 
 ## Session model
@@ -137,6 +185,7 @@ tmux-notiv/
 ├── notiv.tmux
 ├── scripts/
 │   ├── cli.sh
+│   ├── bindings.sh
 │   ├── config.sh
 │   ├── registry.sh
 │   ├── session.sh
@@ -149,6 +198,7 @@ tmux-notiv/
 ├── tests/
 │   ├── test_helper.sh
 │   ├── test_integration.sh
+│   ├── test_bindings.sh
 │   ├── test_popup.sh
 │   ├── test_registry.sh
 │   ├── test_session.sh

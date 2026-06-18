@@ -28,6 +28,16 @@ notiv_set_option() {
 	tmux_cmd set-option -gq "$key" "$value" >/dev/null
 }
 
+notiv_set_default_option() {
+	local key default_value
+	key="$1"
+	default_value="$2"
+
+	if [ -z "$(notiv_get_option "$key" "")" ]; then
+		notiv_set_option "$key" "$default_value"
+	fi
+}
+
 notiv_state_popup_client_key() {
 	printf '@notiv_popup_%s_client\n' "$(notiv_sanitize_name "$1")"
 }
