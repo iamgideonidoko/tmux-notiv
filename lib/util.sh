@@ -62,9 +62,11 @@ notiv_context_option_key() {
 }
 
 notiv_session_name() {
-	local name
-	name="$(notiv_sanitize_name "$1")"
-	printf 'scratch-%s\n' "$name"
+	printf 'scratch-notiv\n'
+}
+
+notiv_window_name() {
+	printf '%s\n' "$(notiv_sanitize_name "$1")"
 }
 
 notiv_csv_contains() {

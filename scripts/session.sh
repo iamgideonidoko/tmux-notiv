@@ -5,24 +5,94 @@ if [ "${NOTIV_SCRIPT_SESSION_SOURCED:-0}" = "1" ]; then
 fi
 NOTIV_SCRIPT_SESSION_SOURCED=1
 
-# shellcheck source=../lib/core.sh
-. "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/lib/core.sh"
+# shellcheck source=./config.sh
+. "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/config.sh"
 
-notiv_session_exists() {
-	local context_name session_name
-	context_name="$1"
-	session_name="$(notiv_session_name "$context_name")"
-	tmux_cmd has-session -t "$session_name" >/dev/null 2>&1
+notiv_session_name() {
+	notiv_config_session_name
 }
 
-notiv_session_create() {
-	local context_name dir cmd session_name
+notiv_session_exists() {
+	tmux_cmd has-session -t "$(notiv_session_name)" >/dev/null 2>&1
+}
+
+notiv_window_target() {
+	local context_name
+	context_name="$1"
+	printf '%s:%s\n' "$(notiv_session_name)" "$(notiv_window_name "$context_name")"
+}
+
+notiv_window_exists() {
+	local context_name session_name window_name
+	context_name="$1"
+	session_name="$(notiv_session_name)"
+	window_name="$(notiv_window_name "$context_name")"
+
+	if ! notiv_session_exists; then
+		return 1
+	fi
+
+	tmux_cmd list-windows -t "$session_name" -F '#{window_name}' 2>/dev/null | while IFS= read -r current_window_name; do
+		if [ "$current_window_name" = "$window_name" ]; then
+			return 0
+		fi
+	done
+}
+
+notiv_window_matches_configuration() {
+	local context_name dir cmd
 	context_name="$1"
 	dir="$2"
 	cmd="$3"
-	session_name="$(notiv_session_name "$context_name")"
 
-	tmux_cmd new-session -d -s "$session_name" -c "$dir" "$cmd" >/dev/null
+	[ "$(notiv_state_get_context_dir "$context_name")" = "$dir" ] &&
+		[ "$(notiv_state_get_context_cmd "$context_name")" = "$cmd" ]
+}
+
+notiv_window_track_configuration() {
+	local context_name dir cmd
+	context_name="$1"
+	dir="$2"
+	cmd="$3"
+
+	notiv_state_set_context_dir "$context_name" "$dir"
+	notiv_state_set_context_cmd "$context_name" "$cmd"
+}
+
+notiv_window_clear_configuration() {
+	local context_name
+	context_name="$1"
+
+	notiv_state_clear_context_dir "$context_name"
+	notiv_state_clear_context_cmd "$context_name"
+}
+
+notiv_window_create() {
+	local context_name dir cmd session_name window_name
+	context_name="$1"
+	dir="$2"
+	cmd="$3"
+	session_name="$(notiv_session_name)"
+	window_name="$(notiv_window_name "$context_name")"
+
+	if notiv_session_exists; then
+		tmux_cmd new-window -d -t "$session_name" -n "$window_name" -c "$dir" "$cmd" >/dev/null
+	else
+		tmux_cmd new-session -d -s "$session_name" -n "$window_name" -c "$dir" "$cmd" >/dev/null
+	fi
+
+	notiv_window_track_configuration "$context_name" "$dir" "$cmd"
+}
+
+notiv_window_recreate() {
+	local context_name dir cmd
+	context_name="$1"
+	dir="$2"
+	cmd="$3"
+
+	tmux_cmd kill-window -t "$(notiv_window_target "$context_name")" >/dev/null
+	notiv_window_clear_configuration "$context_name"
+	notiv_window_create "$context_name" "$dir" "$cmd"
 }
 
 notiv_session_ensure() {
@@ -31,13 +101,15 @@ notiv_session_ensure() {
 	dir="$2"
 	cmd="$3"
 
-	if notiv_session_exists "$context_name"; then
-		printf '%s\n' "$(notiv_session_name "$context_name")"
-		return 0
+	if notiv_window_exists "$context_name"; then
+		if ! notiv_window_matches_configuration "$context_name" "$dir" "$cmd"; then
+			notiv_window_recreate "$context_name" "$dir" "$cmd"
+		fi
+	else
+		notiv_window_create "$context_name" "$dir" "$cmd"
 	fi
 
-	notiv_session_create "$context_name" "$dir" "$cmd"
-	printf '%s\n' "$(notiv_session_name "$context_name")"
+	printf '%s\n' "$(notiv_window_target "$context_name")"
 }
 
 notiv_session_main() {
@@ -48,7 +120,7 @@ notiv_session_main() {
 		exists)
 			context_name="${2:-}"
 			[ -n "$context_name" ] || notiv_die "session exists requires a context name"
-			notiv_session_exists "$context_name"
+			notiv_window_exists "$context_name"
 			;;
 		ensure)
 			context_name="${2:-}"

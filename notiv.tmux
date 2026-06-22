@@ -12,6 +12,7 @@ export NOTIV_ROOT="${NOTIV_ROOT:-$ROOT_DIR}"
 . "$ROOT_DIR/scripts/bindings.sh"
 
 notiv_set_option "@notiv_plugin_path" "$ROOT_DIR"
+notiv_set_default_option "@notiv_session_name" "scratch-notiv"
 notiv_set_default_option "@notiv_default_cmd" "nvim"
 notiv_set_default_option "@notiv_popup_width" "90%"
 notiv_set_default_option "@notiv_popup_height" "90%"

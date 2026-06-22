@@ -24,6 +24,10 @@ notiv_config_auto_register() {
 	notiv_get_option "@notiv_auto_register" ""
 }
 
+notiv_config_session_name() {
+	notiv_get_option "@notiv_session_name" "scratch-notiv"
+}
+
 notiv_config_context_dir() {
 	notiv_get_option "$(notiv_context_option_key "$1" "dir")" ""
 }
@@ -58,6 +62,7 @@ notiv_config_main() {
 			printf 'popup_width=%s\n' "$(notiv_config_popup_width)"
 			printf 'popup_height=%s\n' "$(notiv_config_popup_height)"
 			printf 'auto_register=%s\n' "$(notiv_config_auto_register)"
+			printf 'session_name=%s\n' "$(notiv_config_session_name)"
 			;;
 		*)
 			notiv_die "unknown config command: $subcommand"

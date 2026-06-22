@@ -26,13 +26,13 @@ FILES := \
 test: syntax unit integration
 
 syntax:
-	@for file in $(FILES); do \
+	@set -e; for file in $(FILES); do \
 		bash -n "$$file"; \
 	done
 	@echo "syntax: ok"
 
 unit:
-	@for test_file in tests/test_session.sh tests/test_registry.sh tests/test_popup.sh tests/test_toggle.sh tests/test_bindings.sh; do \
+	@set -e; for test_file in tests/test_session.sh tests/test_registry.sh tests/test_popup.sh tests/test_toggle.sh tests/test_bindings.sh; do \
 		bash "$$test_file"; \
 	done
 	@echo "unit: ok"

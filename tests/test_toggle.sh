@@ -12,8 +12,8 @@ test_toggle_opens_popup() {
 	mock_option_set "@notiv_popup_height" "90%"
 
 	notiv_toggle_context "notes"
-	assert_file_contains "new-session -d -s scratch-notes -c $HOME/notes nvim" "$MOCK_TMUX_LOG" "toggle should create the session when needed"
-	assert_file_contains "display-popup -c client-1 -d $HOME/notes -x C -y C -w 90% -h 90% -T notiv:notes" "$MOCK_TMUX_LOG" "toggle should open the popup"
+	assert_file_contains "new-session -d -s scratch-notiv -n notes -c $HOME/notes nvim" "$MOCK_TMUX_LOG" "toggle should create the shared session and context window when needed"
+	assert_file_contains "switch-client -c client-1 -t scratch-notiv:notes" "$MOCK_TMUX_LOG" "toggle should switch to the resolved context window"
 	test_teardown
 }
 
@@ -24,8 +24,8 @@ test_toggle_reuses_session() {
 
 	notiv_toggle_context "notes"
 	notiv_toggle_context "notes"
-	assert_file_line_count "1" "new-session -d -s scratch-notes -c $HOME/notes nvim" "$MOCK_TMUX_LOG" "toggle should reuse the existing session"
-	assert_file_line_count "2" "display-popup -c client-1 -d $HOME/notes" "$MOCK_TMUX_LOG" "toggle should reopen or refocus the popup on reuse"
+	assert_file_line_count "1" "new-session -d -s scratch-notiv -n notes -c $HOME/notes nvim" "$MOCK_TMUX_LOG" "toggle should reuse the existing shared session"
+	assert_file_line_count "2" "switch-client -c client-1 -t scratch-notiv:notes" "$MOCK_TMUX_LOG" "toggle should refocus the same notiv window on reuse"
 	test_teardown
 }
 

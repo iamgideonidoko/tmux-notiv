@@ -1,12 +1,12 @@
 # tmux-notiv
 
-`tmux-notiv` is a tmux plugin that gives you persistent floating scratch contexts backed by tmux sessions. Each context opens a command in a directory, keeps that session alive after the popup closes, and reuses it on the next open.
+`tmux-notiv` is a tmux plugin that gives you persistent scratch contexts backed by one shared tmux session. Each context opens in its own window with its own command and directory, stays alive after you leave it, and reuses that window on the next open.
 
 ## Features
 
 - Persistent scratch contexts such as `notes`, `todo`, `git`, and `logs`
-- Lazy session creation with stable session names like `scratch-notes`
-- Popup UI via `tmux display-popup`
+- One shared notiv session with one persistent window per context
+- Lazy window creation with a stable session name like `scratch-notiv`
 - Tmux-style configuration through `@notiv_*` options
 - Modular Bash architecture with deterministic unit tests
 
@@ -17,7 +17,7 @@
 - tmux 3.2 or newer
 - Bash
 
-`tmux-notiv` depends on `display-popup`, so tmux 3.2+ is required.
+`tmux-notiv` targets modern tmux releases and is tested against tmux 3.2+.
 
 ### TPM
 
@@ -45,8 +45,7 @@ Default options:
 
 ```tmux
 set -g @notiv_default_cmd 'nvim'
-set -g @notiv_popup_width '90%'
-set -g @notiv_popup_height '90%'
+set -g @notiv_session_name 'scratch-notiv'
 set -g @notiv_key_list 'l'
 set -g @notiv_key_picker 'p'
 ```
@@ -63,21 +62,18 @@ set -g @notiv_git_cmd 'lazygit'
 set -g @notiv_git_key 'g'
 set -g @notiv_logs_dir '~/logs'
 set -g @notiv_logs_cmd 'tail -f app.log'
-set -g @notiv_logs_height '75%'
 ```
 
 Or auto-register several contexts at once:
 
 ```tmux
-set -g @notiv_auto_register 'notes:~/notes:nvim:::n,todo:~/todo:nvim:::t,git:~/src/project:lazygit:95%:95%:g'
+set -g @notiv_auto_register 'notes:~/notes:nvim:::n,todo:~/todo:nvim:::t,git:~/src/project:lazygit:::g'
 ```
 
 Per-context overrides use:
 
 - `@notiv_<name>_dir`
 - `@notiv_<name>_cmd`
-- `@notiv_<name>_width`
-- `@notiv_<name>_height`
 - `@notiv_<name>_key`
 
 Explicit per-context options override values coming from `@notiv_auto_register`.
@@ -139,9 +135,9 @@ Command summary:
 
 | Command                 | Behavior                                                          |
 | ----------------------- | ----------------------------------------------------------------- |
-| `notiv toggle <name>`   | Ensure the scratch session exists, then open or refocus the popup |
+| `notiv toggle <name>`   | Ensure the shared notiv session and context window exist, then switch to it |
 | `notiv open <name>`     | Same as `toggle`, but named explicitly for scripts and bindings   |
-| `notiv close <name>`    | Close the popup on the last known client for that context         |
+| `notiv close <name>`    | Return the last known client to its previous target               |
 | `notiv picker`          | Open a tmux menu for selecting a registered context               |
 | `notiv list`            | Print all resolved contexts and effective settings                |
 | `notiv reload`          | Refresh the registry and re-register namespace bindings           |
@@ -163,13 +159,14 @@ set -g @notiv_key_picker 'p'
 
 ## Session model
 
-Each context maps to a tmux session:
+All contexts share one tmux session and each context gets its own window inside it:
 
-- `notes` -> `scratch-notes`
-- `todo` -> `scratch-todo`
-- `git` -> `scratch-git`
+- session: `scratch-notiv`
+- `notes` -> `scratch-notiv:notes`
+- `todo` -> `scratch-notiv:todo`
+- `git` -> `scratch-notiv:git`
 
-Sessions are created lazily and stay alive after you close the popup.
+Windows are created lazily, reused on later opens, and recreated automatically if the mapped directory or command changes.
 
 ## Development
 

@@ -10,20 +10,31 @@ TEST_TMP_DIR=""
 MOCK_TMUX_LOG=""
 MOCK_TMUX_OPTIONS_FILE=""
 MOCK_TMUX_SESSIONS_FILE=""
+MOCK_TMUX_WINDOWS_FILE=""
 MOCK_TMUX_BINDINGS_FILE=""
 MOCK_CURRENT_CLIENT="client-1"
+MOCK_CURRENT_SESSION="workspace"
+MOCK_CURRENT_WINDOW="main"
+MOCK_PREVIOUS_SESSION=""
+MOCK_PREVIOUS_WINDOW=""
 
 test_setup() {
 	TEST_TMP_DIR="$(mktemp -d)"
 	MOCK_TMUX_LOG="$TEST_TMP_DIR/tmux.log"
 	MOCK_TMUX_OPTIONS_FILE="$TEST_TMP_DIR/options.txt"
 	MOCK_TMUX_SESSIONS_FILE="$TEST_TMP_DIR/sessions.txt"
+	MOCK_TMUX_WINDOWS_FILE="$TEST_TMP_DIR/windows.txt"
 	MOCK_TMUX_BINDINGS_FILE="$TEST_TMP_DIR/bindings.txt"
 	: >"$MOCK_TMUX_LOG"
 	: >"$MOCK_TMUX_OPTIONS_FILE"
 	: >"$MOCK_TMUX_SESSIONS_FILE"
+	: >"$MOCK_TMUX_WINDOWS_FILE"
 	: >"$MOCK_TMUX_BINDINGS_FILE"
 	MOCK_CURRENT_CLIENT="client-1"
+	MOCK_CURRENT_SESSION="workspace"
+	MOCK_CURRENT_WINDOW="main"
+	MOCK_PREVIOUS_SESSION=""
+	MOCK_PREVIOUS_WINDOW=""
 }
 
 test_teardown() {
@@ -92,6 +103,85 @@ mock_session_add() {
 	if ! mock_session_exists "$session_name"; then
 		printf '%s\n' "$session_name" >>"$MOCK_TMUX_SESSIONS_FILE"
 	fi
+}
+
+mock_session_remove_if_empty() {
+	local session_name temp_file line
+	session_name="$1"
+
+	if grep -F -- "${session_name}|" "$MOCK_TMUX_WINDOWS_FILE" >/dev/null 2>&1; then
+		return 0
+	fi
+
+	temp_file="$TEST_TMP_DIR/sessions.tmp"
+	: >"$temp_file"
+	while IFS= read -r line; do
+		[ "$line" = "$session_name" ] && continue
+		printf '%s\n' "$line" >>"$temp_file"
+	done <"$MOCK_TMUX_SESSIONS_FILE"
+	mv "$temp_file" "$MOCK_TMUX_SESSIONS_FILE"
+}
+
+mock_window_exists() {
+	local session_name window_name line
+	session_name="$1"
+	window_name="$2"
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$session_name|$window_name|"*)
+				return 0
+				;;
+		esac
+	done <"$MOCK_TMUX_WINDOWS_FILE"
+
+	return 1
+}
+
+mock_window_add() {
+	local session_name window_name dir cmd
+	session_name="$1"
+	window_name="$2"
+	dir="$3"
+	cmd="$4"
+
+	mock_window_remove "$session_name" "$window_name" 2>/dev/null || true
+	mock_session_add "$session_name"
+	printf '%s|%s|%s|%s\n' "$session_name" "$window_name" "$dir" "$cmd" >>"$MOCK_TMUX_WINDOWS_FILE"
+}
+
+mock_window_remove() {
+	local session_name window_name temp_file line
+	session_name="$1"
+	window_name="$2"
+	temp_file="$TEST_TMP_DIR/windows.tmp"
+	: >"$temp_file"
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$session_name|$window_name|"*)
+				;;
+			*)
+				printf '%s\n' "$line" >>"$temp_file"
+				;;
+		esac
+	done <"$MOCK_TMUX_WINDOWS_FILE"
+
+	mv "$temp_file" "$MOCK_TMUX_WINDOWS_FILE"
+	mock_session_remove_if_empty "$session_name"
+}
+
+mock_windows_list() {
+	local session_name line
+	session_name="$1"
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$session_name|"*)
+				printf '%s\n' "${line#"$session_name|"}" | cut -d'|' -f1
+				;;
+		esac
+	done <"$MOCK_TMUX_WINDOWS_FILE"
 }
 
 mock_options_dump() {
@@ -178,6 +268,16 @@ mock_binding_command() {
 	return 1
 }
 
+mock_switch_client_target() {
+	local target
+	target="$1"
+
+	MOCK_PREVIOUS_SESSION="$MOCK_CURRENT_SESSION"
+	MOCK_PREVIOUS_WINDOW="$MOCK_CURRENT_WINDOW"
+	MOCK_CURRENT_SESSION="${target%%:*}"
+	MOCK_CURRENT_WINDOW="${target#*:}"
+}
+
 notiv_tmux_cmd_mock() {
 	local command_name
 	command_name="$1"
@@ -209,9 +309,16 @@ notiv_tmux_cmd_mock() {
 			fi
 			return 1
 			;;
+		list-windows)
+			if [ "$1" = "-t" ] && [ "$3" = "-F" ] && [ "$4" = '#{window_name}' ]; then
+				mock_windows_list "$2"
+				return 0
+			fi
+			;;
 		new-session)
-			local session_name dir cmd arg
+			local session_name window_name dir cmd arg
 			session_name=""
+			window_name=""
 			dir=""
 			cmd=""
 			while [ "$#" -gt 0 ]; do
@@ -224,6 +331,10 @@ notiv_tmux_cmd_mock() {
 						session_name="$1"
 						shift || true
 						;;
+					-n)
+						window_name="$1"
+						shift || true
+						;;
 					-c)
 						dir="$1"
 						shift || true
@@ -234,9 +345,49 @@ notiv_tmux_cmd_mock() {
 						;;
 				esac
 			done
-			mock_session_add "$session_name"
-			printf '%s|%s|%s\n' "$session_name" "$dir" "$cmd" >>"$TEST_TMP_DIR/new-sessions.log"
+			mock_window_add "$session_name" "$window_name" "$dir" "$cmd"
+			printf '%s|%s|%s|%s\n' "$session_name" "$window_name" "$dir" "$cmd" >>"$TEST_TMP_DIR/new-sessions.log"
 			return 0
+			;;
+		new-window)
+			local target_session window_name dir cmd arg
+			target_session=""
+			window_name=""
+			dir=""
+			cmd=""
+			while [ "$#" -gt 0 ]; do
+				arg="$1"
+				shift || true
+				case "$arg" in
+					-d)
+						;;
+					-t)
+						target_session="$1"
+						shift || true
+						;;
+					-n)
+						window_name="$1"
+						shift || true
+						;;
+					-c)
+						dir="$1"
+						shift || true
+						;;
+					*)
+						cmd="$arg"
+						break
+						;;
+				esac
+			done
+			mock_window_add "$target_session" "$window_name" "$dir" "$cmd"
+			printf '%s|%s|%s|%s\n' "$target_session" "$window_name" "$dir" "$cmd" >>"$TEST_TMP_DIR/new-windows.log"
+			return 0
+			;;
+		kill-window)
+			if [ "$1" = "-t" ]; then
+				mock_window_remove "${2%%:*}" "${2#*:}"
+				return 0
+			fi
 			;;
 		display-popup)
 			printf '%s\n' "$*" >>"$TEST_TMP_DIR/display-popup.log"
@@ -247,11 +398,56 @@ notiv_tmux_cmd_mock() {
 				printf '%s\n' "$MOCK_CURRENT_CLIENT"
 				return 0
 			fi
+			if [ "$1" = "-p" ] && [ "$2" = '#{session_name}:#{window_name}' ]; then
+				printf '%s:%s\n' "$MOCK_CURRENT_SESSION" "$MOCK_CURRENT_WINDOW"
+				return 0
+			fi
+			if [ "$1" = "-p" ] && [ "$2" = '#{session_name}' ]; then
+				printf '%s\n' "$MOCK_CURRENT_SESSION"
+				return 0
+			fi
+			if [ "$1" = "-p" ] && [ "$2" = '#{window_name}' ]; then
+				printf '%s\n' "$MOCK_CURRENT_WINDOW"
+				return 0
+			fi
 			if [ "$1" = "-p" ]; then
 				printf '%s\n' "$2"
 				return 0
 			fi
 			return 1
+			;;
+		switch-client)
+			local client_name target
+			client_name=""
+			target=""
+			while [ "$#" -gt 0 ]; do
+				case "$1" in
+					-c)
+						client_name="$2"
+						shift 2 || true
+						;;
+					-t)
+						target="$2"
+						shift 2 || true
+						;;
+					-l)
+						shift || true
+						if [ -z "$MOCK_PREVIOUS_SESSION" ] || [ -z "$MOCK_PREVIOUS_WINDOW" ]; then
+							return 1
+						fi
+						mock_switch_client_target "$MOCK_PREVIOUS_SESSION:$MOCK_PREVIOUS_WINDOW"
+						return 0
+						;;
+					*)
+						shift || true
+						;;
+				esac
+			done
+			[ -n "$client_name" ] || client_name="$MOCK_CURRENT_CLIENT"
+			[ "$client_name" = "$MOCK_CURRENT_CLIENT" ] || return 1
+			[ -n "$target" ] || return 1
+			mock_switch_client_target "$target"
+			return 0
 			;;
 		bind-key)
 			local table key command
