@@ -94,18 +94,18 @@ notiv_state_clear_context_cmd() {
 	notiv_set_option "$(notiv_state_context_cmd_key "$1")" ""
 }
 
-notiv_state_client_return_target_key() {
-	printf '@notiv_client_%s_return_target\n' "$(notiv_sanitize_name "$1")"
+notiv_state_client_active_context_key() {
+	printf '@notiv_client_%s_active_context\n' "$(notiv_sanitize_name "$1")"
 }
 
-notiv_state_get_client_return_target() {
-	notiv_get_option "$(notiv_state_client_return_target_key "$1")" ""
+notiv_state_get_client_active_context() {
+	notiv_get_option "$(notiv_state_client_active_context_key "$1")" ""
 }
 
-notiv_state_set_client_return_target() {
-	notiv_set_option "$(notiv_state_client_return_target_key "$1")" "$2"
+notiv_state_set_client_active_context() {
+	notiv_set_option "$(notiv_state_client_active_context_key "$1")" "$2"
 }
 
-notiv_state_clear_client_return_target() {
-	notiv_set_option "$(notiv_state_client_return_target_key "$1")" ""
+notiv_state_clear_client_active_context() {
+	notiv_set_option "$(notiv_state_client_active_context_key "$1")" ""
 }

@@ -1,12 +1,13 @@
 # tmux-notiv
 
-`tmux-notiv` is a tmux plugin that gives you persistent scratch contexts backed by one shared tmux session. Each context opens in its own window with its own command and directory, stays alive after you leave it, and reuses that window on the next open.
+`tmux-notiv` is a tmux plugin that gives you persistent scratch contexts backed by one shared tmux session. Each context lives in its own window inside that shared session, but opens as a popup on whatever tmux client you are currently using.
 
 ## Features
 
 - Persistent scratch contexts such as `notes`, `todo`, `git`, and `logs`
 - One shared notiv session with one persistent window per context
 - Lazy window creation with a stable session name like `scratch-notiv`
+- Popup UI that always opens on the current tmux client
 - Tmux-style configuration through `@notiv_*` options
 - Modular Bash architecture with deterministic unit tests
 
@@ -46,6 +47,8 @@ Default options:
 ```tmux
 set -g @notiv_default_cmd 'nvim'
 set -g @notiv_session_name 'scratch-notiv'
+set -g @notiv_popup_width '90%'
+set -g @notiv_popup_height '90%'
 set -g @notiv_key_list 'l'
 set -g @notiv_key_picker 'p'
 ```
@@ -62,6 +65,7 @@ set -g @notiv_git_cmd 'lazygit'
 set -g @notiv_git_key 'g'
 set -g @notiv_logs_dir '~/logs'
 set -g @notiv_logs_cmd 'tail -f app.log'
+set -g @notiv_logs_height '75%'
 ```
 
 Or auto-register several contexts at once:
@@ -74,6 +78,8 @@ Per-context overrides use:
 
 - `@notiv_<name>_dir`
 - `@notiv_<name>_cmd`
+- `@notiv_<name>_width`
+- `@notiv_<name>_height`
 - `@notiv_<name>_key`
 
 Explicit per-context options override values coming from `@notiv_auto_register`.
@@ -105,9 +111,9 @@ With that configuration:
 
 | Sequence | Action |
 | --- | --- |
-| `prefix + n`, `o` | Open `notes` |
-| `prefix + n`, `d` | Open `todo` |
-| `prefix + n`, `r` | Open `git` |
+| `prefix + n`, `o` | Toggle `notes` |
+| `prefix + n`, `d` | Toggle `todo` |
+| `prefix + n`, `r` | Toggle `git` |
 | `prefix + n`, `L` | Run `notiv list` |
 | `prefix + n`, `P` | Open the notiv picker |
 
@@ -135,9 +141,9 @@ Command summary:
 
 | Command                 | Behavior                                                          |
 | ----------------------- | ----------------------------------------------------------------- |
-| `notiv toggle <name>`   | Ensure the shared notiv session and context window exist, then switch to it |
-| `notiv open <name>`     | Same as `toggle`, but named explicitly for scripts and bindings   |
-| `notiv close <name>`    | Return the last known client to its previous target               |
+| `notiv toggle <name>`   | Toggle a popup for the named context on the current tmux client   |
+| `notiv open <name>`     | Open or retarget the popup to the named context                   |
+| `notiv close <name>`    | Close the popup on the last known client for that context         |
 | `notiv picker`          | Open a tmux menu for selecting a registered context               |
 | `notiv list`            | Print all resolved contexts and effective settings                |
 | `notiv reload`          | Refresh the registry and re-register namespace bindings           |
@@ -161,12 +167,17 @@ set -g @notiv_key_picker 'p'
 
 All contexts share one tmux session and each context gets its own window inside it:
 
-- session: `scratch-notiv`
+- backing session: `scratch-notiv`
 - `notes` -> `scratch-notiv:notes`
 - `todo` -> `scratch-notiv:todo`
 - `git` -> `scratch-notiv:git`
 
-Windows are created lazily, reused on later opens, and recreated automatically if the mapped directory or command changes.
+Windows are created lazily, reused on later opens, and recreated automatically if the mapped directory or command changes. Opening a context attaches that window inside a popup on the current client rather than switching your client to the backing session.
+
+## Notes and tmux limits
+
+- `Escape` is still handled by tmux itself for popups, so it cannot be disabled from the plugin while using `display-popup`.
+- tmux does not provide a native way to hide a detached backing session from `list-sessions` or session pickers, so the shared notiv session may still appear there.
 
 ## Development
 

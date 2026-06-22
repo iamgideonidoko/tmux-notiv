@@ -5,15 +5,11 @@ if [ "${NOTIV_LIB_POPUP_SOURCED:-0}" = "1" ]; then
 fi
 NOTIV_LIB_POPUP_SOURCED=1
 
-# shellcheck source=../scripts/session.sh
-. "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)/scripts/session.sh"
+# shellcheck source=./state.sh
+. "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/state.sh"
 
 notiv_popup_current_client() {
 	tmux_cmd display-message -p '#{client_name}'
-}
-
-notiv_popup_current_target() {
-	tmux_cmd display-message -p '#{session_name}:#{window_name}'
 }
 
 notiv_popup_target_client() {
@@ -35,12 +31,25 @@ notiv_popup_target_client() {
 	return 1
 }
 
-notiv_popup_is_notiv_target() {
-	local target
-	target="$1"
+notiv_popup_is_active() {
+	local client popup_active
+	client="$1"
+	popup_active="$(tmux_cmd display-message -p -c "$client" '#{popup_active}' 2>/dev/null || true)"
+	[ "$popup_active" = "1" ]
+}
 
-	case "$target" in
-		"$(notiv_session_name)":*)
+notiv_popup_active_context() {
+	local client popup_title
+	client="$1"
+
+	if ! notiv_popup_is_active "$client"; then
+		return 1
+	fi
+
+	popup_title="$(tmux_cmd display-message -p -c "$client" '#{popup_title}' 2>/dev/null || true)"
+	case "$popup_title" in
+		notiv:*)
+			printf '%s\n' "${popup_title#notiv:}"
 			return 0
 			;;
 	esac
@@ -49,42 +58,46 @@ notiv_popup_is_notiv_target() {
 }
 
 notiv_popup_open() {
-	local context_name target width height client current_target return_target
+	local context_name dir target width height client title attach_cmd
 	context_name="$1"
+	dir="$2"
 	target="$3"
 	width="$4"
 	height="$5"
 	client="$(notiv_popup_target_client "$context_name")" || notiv_die "unable to determine tmux client for context '$context_name'"
-	current_target="$(notiv_popup_current_target 2>/dev/null || true)"
+	title="notiv:${context_name}"
+	printf -v attach_cmd 'exec %q attach-session -t %q' "${NOTIV_TMUX_BIN:-tmux}" "$target"
 
-	if [ -n "$current_target" ] && ! notiv_popup_is_notiv_target "$current_target"; then
-		notiv_state_set_client_return_target "$client" "$current_target"
-	else
-		return_target="$(notiv_state_get_client_return_target "$client")"
-		if [ -z "$return_target" ] && [ -n "$current_target" ] && [ "$current_target" != "$target" ]; then
-			notiv_state_set_client_return_target "$client" "$current_target"
-		fi
+	if notiv_popup_is_active "$client"; then
+		tmux_cmd display-popup -C -c "$client" >/dev/null
+		notiv_state_clear_client_active_context "$client"
 	fi
 
-	tmux_cmd switch-client -c "$client" -t "$target" >/dev/null
+	tmux_cmd display-popup \
+		-c "$client" \
+		-d "$dir" \
+		-x C \
+		-y C \
+		-w "$width" \
+		-h "$height" \
+		-T "$title" \
+		"$attach_cmd" >/dev/null
 
 	notiv_state_set_popup_client "$context_name" "$client"
 	notiv_state_set_last_context "$context_name"
+	notiv_state_set_client_active_context "$client" "$context_name"
 }
 
 notiv_popup_close() {
-	local context_name client return_target
+	local context_name client active_context
 	context_name="$1"
 	client="$(notiv_popup_target_client "$context_name")" || notiv_die "unable to determine tmux client for context '$context_name'"
-	return_target="$(notiv_state_get_client_return_target "$client")"
+	active_context="$(notiv_popup_active_context "$client" 2>/dev/null || true)"
 
-	if [ -n "$return_target" ]; then
-		tmux_cmd switch-client -c "$client" -t "$return_target" >/dev/null
-		notiv_state_clear_client_return_target "$client"
-	else
-		tmux_cmd switch-client -c "$client" -l >/dev/null 2>&1 ||
-			notiv_die "unable to determine where to close context '$context_name' for client '$client'"
+	if [ -n "$active_context" ]; then
+		tmux_cmd display-popup -C -c "$client" >/dev/null
 	fi
 
+	notiv_state_clear_client_active_context "$client"
 	notiv_state_clear_popup_client "$context_name"
 }

@@ -12,6 +12,7 @@ MOCK_TMUX_OPTIONS_FILE=""
 MOCK_TMUX_SESSIONS_FILE=""
 MOCK_TMUX_WINDOWS_FILE=""
 MOCK_TMUX_BINDINGS_FILE=""
+MOCK_TMUX_POPUPS_FILE=""
 MOCK_CURRENT_CLIENT="client-1"
 MOCK_CURRENT_SESSION="workspace"
 MOCK_CURRENT_WINDOW="main"
@@ -25,11 +26,13 @@ test_setup() {
 	MOCK_TMUX_SESSIONS_FILE="$TEST_TMP_DIR/sessions.txt"
 	MOCK_TMUX_WINDOWS_FILE="$TEST_TMP_DIR/windows.txt"
 	MOCK_TMUX_BINDINGS_FILE="$TEST_TMP_DIR/bindings.txt"
+	MOCK_TMUX_POPUPS_FILE="$TEST_TMP_DIR/popups.txt"
 	: >"$MOCK_TMUX_LOG"
 	: >"$MOCK_TMUX_OPTIONS_FILE"
 	: >"$MOCK_TMUX_SESSIONS_FILE"
 	: >"$MOCK_TMUX_WINDOWS_FILE"
 	: >"$MOCK_TMUX_BINDINGS_FILE"
+	: >"$MOCK_TMUX_POPUPS_FILE"
 	MOCK_CURRENT_CLIENT="client-1"
 	MOCK_CURRENT_SESSION="workspace"
 	MOCK_CURRENT_WINDOW="main"
@@ -190,6 +193,57 @@ mock_options_dump() {
 		[ -n "$line" ] || continue
 		printf '%s %s\n' "${line%%=*}" "${line#*=}"
 	done <"$MOCK_TMUX_OPTIONS_FILE"
+}
+
+mock_popup_get_field() {
+	local client field line value
+	client="$1"
+	field="$2"
+	value=""
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$client|"*)
+				case "$field" in
+					active)
+						value="${line#"$client|"}"
+						value="${value%%|*}"
+						;;
+					title)
+						value="${line##*|}"
+						;;
+				esac
+				;;
+		esac
+	done <"$MOCK_TMUX_POPUPS_FILE"
+
+	printf '%s\n' "$value"
+}
+
+mock_popup_set() {
+	local client active title temp_file line
+	client="$1"
+	active="$2"
+	title="$3"
+	temp_file="$TEST_TMP_DIR/popups.tmp"
+	: >"$temp_file"
+
+	while IFS= read -r line; do
+		case "$line" in
+			"$client|"*)
+				;;
+			*)
+				printf '%s\n' "$line" >>"$temp_file"
+				;;
+		esac
+	done <"$MOCK_TMUX_POPUPS_FILE"
+
+	printf '%s|%s|%s\n' "$client" "$active" "$title" >>"$temp_file"
+	mv "$temp_file" "$MOCK_TMUX_POPUPS_FILE"
+}
+
+mock_popup_clear() {
+	mock_popup_set "$1" "0" ""
 }
 
 mock_binding_set() {
@@ -390,13 +444,55 @@ notiv_tmux_cmd_mock() {
 			fi
 			;;
 		display-popup)
-			printf '%s\n' "$*" >>"$TEST_TMP_DIR/display-popup.log"
+			local popup_client popup_title popup_args
+			popup_client="$MOCK_CURRENT_CLIENT"
+			popup_title=""
+			popup_args="$*"
+
+			if [ "${1:-}" = "-C" ]; then
+				shift || true
+				if [ "${1:-}" = "-c" ]; then
+					popup_client="$2"
+				fi
+				mock_popup_clear "$popup_client"
+				printf '%s\n' "-C -c $popup_client" >>"$TEST_TMP_DIR/display-popup.log"
+				return 0
+			fi
+
+			while [ "$#" -gt 0 ]; do
+				case "$1" in
+					-c)
+						popup_client="$2"
+						shift 2 || true
+						;;
+					-T)
+						popup_title="$2"
+						shift 2 || true
+						;;
+					*)
+						shift || true
+						;;
+				esac
+			done
+
+			mock_popup_set "$popup_client" "1" "$popup_title"
+			printf '%s\n' "$popup_args" >>"$TEST_TMP_DIR/display-popup.log"
 			return 0
 			;;
 		display-message)
 			if [ "$1" = "-p" ] && [ "$2" = '#{client_name}' ]; then
 				printf '%s\n' "$MOCK_CURRENT_CLIENT"
 				return 0
+			fi
+			if [ "$1" = "-p" ] && [ "$2" = "-c" ]; then
+				if [ "$4" = '#{popup_active}' ]; then
+					printf '%s\n' "$(mock_popup_get_field "$3" "active")"
+					return 0
+				fi
+				if [ "$4" = '#{popup_title}' ]; then
+					printf '%s\n' "$(mock_popup_get_field "$3" "title")"
+					return 0
+				fi
 			fi
 			if [ "$1" = "-p" ] && [ "$2" = '#{session_name}:#{window_name}' ]; then
 				printf '%s:%s\n' "$MOCK_CURRENT_SESSION" "$MOCK_CURRENT_WINDOW"

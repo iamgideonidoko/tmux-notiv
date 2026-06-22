@@ -4,11 +4,11 @@ set -euo pipefail
 # shellcheck source=./test_helper.sh
 . "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/test_helper.sh"
 
-test_popup_switches_client_to_context_window() {
+test_popup_opens_requested_context() {
 	test_setup
 	notiv_popup_open "notes" "/tmp/notes" "scratch-notiv:notes" "80%" "70%"
-	assert_file_contains "switch-client -c client-1 -t scratch-notiv:notes" "$MOCK_TMUX_LOG" "opening a context should switch the current client to its window"
-	assert_eq "workspace:main" "$(mock_option_get "@notiv_client_client-1_return_target")" "opening from a non-notiv target should remember where to return"
+	assert_file_contains "display-popup -c client-1 -d /tmp/notes -x C -y C -w 80% -h 70% -T notiv:notes" "$MOCK_TMUX_LOG" "opening a context should create a popup on the current client"
+	assert_file_contains "attach-session -t scratch-notiv:notes" "$TEST_TMP_DIR/display-popup.log" "popup should attach to the requested context window"
 	test_teardown
 }
 
@@ -20,15 +20,15 @@ test_popup_tracks_last_client() {
 	test_teardown
 }
 
-test_popup_close_returns_client_to_previous_target() {
+test_popup_close_clears_active_popup() {
 	test_setup
 	notiv_popup_open "notes" "/tmp/notes" "scratch-notiv:notes" "90%" "90%"
 	notiv_popup_close "notes"
-	assert_file_contains "switch-client -c client-1 -t workspace:main" "$MOCK_TMUX_LOG" "closing a context should return to the previous client target"
+	assert_file_contains "-C -c client-1" "$TEST_TMP_DIR/display-popup.log" "closing a context should close the popup on the current client"
 	test_teardown
 }
 
-test_popup_switches_client_to_context_window
+test_popup_opens_requested_context
 test_popup_tracks_last_client
-test_popup_close_returns_client_to_previous_target
+test_popup_close_clears_active_popup
 printf 'test_popup: ok\n'

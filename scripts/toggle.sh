@@ -26,7 +26,17 @@ notiv_open_context() {
 }
 
 notiv_toggle_context() {
-	notiv_open_context "$1"
+	local context_name client active_context
+	context_name="$1"
+	client="$(notiv_popup_target_client "$context_name")" || notiv_die "unable to determine tmux client for context '$context_name'"
+	active_context="$(notiv_popup_active_context "$client" 2>/dev/null || true)"
+
+	if [ "$active_context" = "$context_name" ]; then
+		notiv_close_context "$context_name"
+		return 0
+	fi
+
+	notiv_open_context "$context_name"
 }
 
 notiv_close_context() {
@@ -39,7 +49,11 @@ notiv_toggle_main() {
 	context_name="${2:-}"
 
 	case "$subcommand" in
-		toggle|open)
+		toggle)
+			[ -n "$context_name" ] || notiv_die "$subcommand requires a context name"
+			notiv_toggle_context "$context_name"
+			;;
+		open)
 			[ -n "$context_name" ] || notiv_die "$subcommand requires a context name"
 			notiv_open_context "$context_name"
 			;;
