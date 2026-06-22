@@ -1,6 +1,6 @@
 # tmux-notiv
 
-`tmux-notiv` is a tmux plugin that gives you persistent scratch contexts backed by one shared tmux session. Each context lives in its own window inside that shared session, but opens as a popup on whatever tmux client you are currently using.
+`tmux-notiv` is a tmux plugin that gives you persistent scratch contexts backed by one shared tmux session. Each context lives in its own window inside that shared session, but opens as a popup on whatever tmux client you are currently using with the same attach/detach popup model.
 
 ## Features
 
@@ -90,10 +90,10 @@ Explicit per-context options override values coming from `@notiv_auto_register`.
 
 Default bindings:
 
-| Sequence          | Action                                       |
-| ----------------- | -------------------------------------------- |
-| `prefix + n`, `l` | Run `notiv list`                             |
-| `prefix + n`, `p` | Open the notiv picker                        |
+| Sequence          | Action                |
+| ----------------- | --------------------- |
+| `prefix + n`, `l` | Run `notiv list`      |
+| `prefix + n`, `p` | Open the notiv picker |
 
 Context bindings are only registered when both the context exists and it has an explicit key. For example, `notes` is only bound when `@notiv_notes_dir` (or `@notiv_auto_register`) exists and `@notiv_notes_key` is set, or the auto-register record includes a key field.
 
@@ -109,12 +109,12 @@ set -g @notiv_key_picker 'P'
 
 With that configuration:
 
-| Sequence | Action |
-| --- | --- |
-| `prefix + n`, `o` | Toggle `notes` |
-| `prefix + n`, `d` | Toggle `todo` |
-| `prefix + n`, `r` | Toggle `git` |
-| `prefix + n`, `L` | Run `notiv list` |
+| Sequence          | Action                |
+| ----------------- | --------------------- |
+| `prefix + n`, `o` | Toggle `notes`        |
+| `prefix + n`, `d` | Toggle `todo`         |
+| `prefix + n`, `r` | Toggle `git`          |
+| `prefix + n`, `L` | Run `notiv list`      |
 | `prefix + n`, `P` | Open the notiv picker |
 
 Reload bindings after changing key options:
@@ -139,15 +139,15 @@ The plugin ships a standalone CLI wrapper:
 
 Command summary:
 
-| Command                 | Behavior                                                          |
-| ----------------------- | ----------------------------------------------------------------- |
-| `notiv toggle <name>`   | Toggle a popup for the named context on the current tmux client   |
-| `notiv open <name>`     | Open or retarget the popup to the named context                   |
-| `notiv close <name>`    | Close the popup on the last known client for that context         |
-| `notiv picker`          | Open a tmux menu for selecting a registered context               |
-| `notiv list`            | Print all resolved contexts and effective settings                |
-| `notiv reload`          | Refresh the registry and re-register namespace bindings           |
-| `notiv reload bindings` | Clear and rebuild the `prefix + n` notiv bindings                 |
+| Command                 | Behavior                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------ |
+| `notiv toggle <name>`   | Open the named context from a normal tmux client, or close/switch it from inside the popup |
+| `notiv open <name>`     | Open the popup or switch to the named context window inside it                             |
+| `notiv close <name>`    | Close the popup on the last known client for that context                                  |
+| `notiv picker`          | Open a tmux menu for selecting a registered context                                        |
+| `notiv list`            | Print all resolved contexts and effective settings                                         |
+| `notiv reload`          | Refresh the registry and re-register namespace bindings                                    |
+| `notiv reload bindings` | Clear and rebuild the `prefix + n` notiv bindings                                          |
 
 ## Example tmux config
 
@@ -172,11 +172,11 @@ All contexts share one tmux session and each context gets its own window inside 
 - `todo` -> `scratch-notiv:todo`
 - `git` -> `scratch-notiv:git`
 
-Windows are created lazily, reused on later opens, and recreated automatically if the mapped directory or command changes. Opening a context attaches that window inside a popup on the current client rather than switching your client to the backing session.
+Windows are created lazily, reused on later opens, and recreated automatically if the mapped directory or command changes. Opening a context attaches that window inside a popup on the current client rather than switching your client to the backing session. When you trigger a context binding from inside the popup, notiv now detaches the popup client to close the current context or switches windows in place for another context.
 
 ## Notes and tmux limits
 
-- `Escape` is still handled by tmux itself for popups, so it cannot be disabled from the plugin while using `display-popup`.
+- The popup lifecycle is driven by attaching and detaching a tmux client inside `display-popup`, so the supported close path is the same mapped key from inside the popup.
 - tmux does not provide a native way to hide a detached backing session from `list-sessions` or session pickers, so the shared notiv session may still appear there.
 
 ## Development

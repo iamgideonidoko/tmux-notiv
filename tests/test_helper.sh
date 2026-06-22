@@ -332,6 +332,11 @@ mock_switch_client_target() {
 	MOCK_CURRENT_WINDOW="${target#*:}"
 }
 
+mock_set_current_target() {
+	MOCK_CURRENT_SESSION="${1%%:*}"
+	MOCK_CURRENT_WINDOW="${1#*:}"
+}
+
 notiv_tmux_cmd_mock() {
 	local command_name
 	command_name="$1"
@@ -443,6 +448,12 @@ notiv_tmux_cmd_mock() {
 				return 0
 			fi
 			;;
+		select-window)
+			if [ "$1" = "-t" ]; then
+				mock_set_current_target "$2"
+				return 0
+			fi
+			;;
 		display-popup)
 			local popup_client popup_title popup_args
 			popup_client="$MOCK_CURRENT_CLIENT"
@@ -543,6 +554,10 @@ notiv_tmux_cmd_mock() {
 			[ "$client_name" = "$MOCK_CURRENT_CLIENT" ] || return 1
 			[ -n "$target" ] || return 1
 			mock_switch_client_target "$target"
+			return 0
+			;;
+		detach-client)
+			printf 'detached\n' >>"$TEST_TMP_DIR/detach-client.log"
 			return 0
 			;;
 		bind-key)
