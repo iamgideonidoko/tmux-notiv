@@ -22,8 +22,7 @@ test_default_bindings_exist() {
 	assert_contains "toggle notes" "$(mock_binding_command "notiv" "n")" "notes binding should exist"
 	assert_contains "toggle todo" "$(mock_binding_command "notiv" "t")" "todo binding should exist"
 	assert_contains "toggle git" "$(mock_binding_command "notiv" "g")" "git binding should exist"
-	assert_contains "list" "$(mock_binding_command "notiv" "l")" "list binding should exist"
-	assert_contains "picker" "$(mock_binding_command "notiv" "p")" "picker binding should exist"
+	assert_contains "menu" "$(mock_binding_command "notiv" "P")" "menu binding should exist"
 	test_teardown
 }
 
@@ -53,7 +52,7 @@ test_idempotency_does_not_duplicate_bindings() {
 	assert_eq "1" "$(mock_binding_count "prefix" "n")" "namespace entry should remain singular after repeated loads"
 	assert_eq "1" "$(mock_binding_count "notiv" "n")" "notes binding should remain singular after repeated loads"
 	assert_eq "1" "$(mock_binding_count "notiv" "t")" "todo binding should remain singular after repeated loads"
-	assert_eq "1" "$(mock_binding_count "notiv" "l")" "list binding should remain singular after repeated loads"
+	assert_eq "1" "$(mock_binding_count "notiv" "P")" "menu binding should remain singular after repeated loads"
 	test_teardown
 }
 
@@ -83,6 +82,21 @@ test_only_contexts_with_keys_are_bound() {
 	assert_eq "0" "$(mock_binding_count "notiv" "n")" "notes should not be bound without an explicit key"
 	assert_eq "1" "$(mock_binding_count "notiv" "t")" "todo should be bound when context and key exist"
 	assert_eq "0" "$(mock_binding_count "notiv" "g")" "git should not be bound without an explicit key"
+	assert_eq "1" "$(mock_binding_count "notiv" "P")" "menu binding should always exist"
+	test_teardown
+}
+
+test_custom_prefix_key() {
+	test_setup
+	mock_option_set "@notiv_notes_dir" "~/notes"
+	mock_option_set "@notiv_notes_key" "n"
+	mock_option_set "@notiv_key_prefix" "N"
+
+	notiv_bindings
+
+	assert_eq "1" "$(mock_binding_count "prefix" "N")" "custom prefix key should be bound"
+	assert_eq "switch-client -T notiv" "$(mock_binding_command "prefix" "N")" "custom prefix key should switch to notiv table"
+	assert_eq "0" "$(mock_binding_count "prefix" "n")" "default prefix key should not be bound when custom is set"
 	test_teardown
 }
 
@@ -91,4 +105,5 @@ test_context_key_override_works
 test_idempotency_does_not_duplicate_bindings
 test_reload_rebinds_cleanly
 test_only_contexts_with_keys_are_bound
+test_custom_prefix_key
 printf 'test_bindings: ok\n'

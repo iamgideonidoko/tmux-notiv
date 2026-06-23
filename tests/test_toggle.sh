@@ -13,7 +13,12 @@ test_toggle_opens_popup() {
 
 	notiv_toggle_context "notes"
 	assert_file_contains "new-session -d -s scratch-notiv -n notes -c $HOME/notes nvim" "$MOCK_TMUX_LOG" "toggle should create the shared session and context window when needed"
-	assert_file_contains "display-popup -c client-1 -d $HOME/notes -x C -y C -w 90% -h 90% -T notiv:notes -E" "$MOCK_TMUX_LOG" "toggle should open the resolved context in a popup"
+	assert_file_contains "display-popup" "$MOCK_TMUX_LOG" "toggle should open the resolved context in a popup"
+	assert_file_contains "-c client-1" "$MOCK_TMUX_LOG" "popup should target the current client"
+	assert_file_contains "-d $HOME/notes" "$MOCK_TMUX_LOG" "popup should use the context directory"
+	assert_file_contains "-w 90%" "$MOCK_TMUX_LOG" "popup should use the configured width"
+	assert_file_contains "-h 90%" "$MOCK_TMUX_LOG" "popup should use the configured height"
+	assert_file_contains "attach-session -t scratch-notiv:notes" "$TEST_TMP_DIR/display-popup.log" "popup should attach to the context window"
 	test_teardown
 }
 

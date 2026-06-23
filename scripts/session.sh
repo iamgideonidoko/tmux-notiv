@@ -39,6 +39,18 @@ notiv_window_exists() {
 	done
 }
 
+notiv_session_window_count() {
+	local session_name
+	session_name="$(notiv_session_name)"
+
+	if ! notiv_session_exists; then
+		printf '0\n'
+		return 0
+	fi
+
+	tmux_cmd list-windows -t "$session_name" 2>/dev/null | wc -l | tr -d ' '
+}
+
 notiv_window_matches_configuration() {
 	local context_name dir cmd
 	context_name="$1"
@@ -102,8 +114,10 @@ notiv_session_ensure() {
 	cmd="$3"
 
 	if notiv_window_exists "$context_name"; then
-		if ! notiv_window_matches_configuration "$context_name" "$dir" "$cmd"; then
-			notiv_window_recreate "$context_name" "$dir" "$cmd"
+		if [ "$(notiv_config_change_path)" = "true" ]; then
+			if ! notiv_window_matches_configuration "$context_name" "$dir" "$cmd"; then
+				notiv_window_recreate "$context_name" "$dir" "$cmd"
+			fi
 		fi
 	else
 		notiv_window_create "$context_name" "$dir" "$cmd"

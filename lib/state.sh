@@ -109,3 +109,19 @@ notiv_state_set_client_active_context() {
 notiv_state_clear_client_active_context() {
 	notiv_set_option "$(notiv_state_client_active_context_key "$1")" ""
 }
+
+notiv_state_origin_session_key() {
+	printf '@notiv_origin_session_%s\n' "$(notiv_sanitize_name "$1")"
+}
+
+notiv_state_get_origin_session() {
+	notiv_get_option "$(notiv_state_origin_session_key "$1")" ""
+}
+
+notiv_state_set_origin_session() {
+	notiv_set_option "$(notiv_state_origin_session_key "$1")" "$2"
+}
+
+notiv_state_clear_origin_session() {
+	notiv_set_option "$(notiv_state_origin_session_key "$1")" ""
+}

@@ -61,12 +61,46 @@ notiv_context_option_key() {
 	printf '@notiv_%s_%s\n' "$name" "$field"
 }
 
-notiv_session_name() {
-	printf 'scratch-notiv\n'
-}
-
 notiv_window_name() {
 	printf '%s\n' "$(notiv_sanitize_name "$1")"
+}
+
+notiv_env_get() {
+	local line
+	line="$(tmux_cmd showenv -g "$1" 2>/dev/null || true)"
+	case "$line" in
+		"$1="*)
+			printf '%s\n' "${line#"$1="}"
+			;;
+		*)
+			printf '\n'
+			;;
+	esac
+}
+
+notiv_env_set() {
+	tmux_cmd setenv -g "$1" "$2" >/dev/null 2>&1 || true
+}
+
+notiv_env_clear() {
+	tmux_cmd setenv -gu "$1" >/dev/null 2>&1 || true
+}
+
+notiv_env_clear_width_height() {
+	notiv_env_clear NOTIV_WIDTH
+	notiv_env_clear NOTIV_HEIGHT
+}
+
+notiv_popup_default_title() {
+	local context_name
+	context_name="$1"
+	printf 'notiv:%s  C-M-s -  C-M-b +  C-M-f full  C-M-r reset  C-M-e embed  C-M-d lock' "$context_name"
+}
+
+notiv_popup_locked_title() {
+	local context_name
+	context_name="$1"
+	printf 'notiv:%s  Bindings locked. Unlock with C-M-u' "$context_name"
 }
 
 notiv_csv_contains() {

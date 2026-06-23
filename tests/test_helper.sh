@@ -13,11 +13,19 @@ MOCK_TMUX_SESSIONS_FILE=""
 MOCK_TMUX_WINDOWS_FILE=""
 MOCK_TMUX_BINDINGS_FILE=""
 MOCK_TMUX_POPUPS_FILE=""
+MOCK_TMUX_ENV_FILE=""
+MOCK_TMUX_SENDKEYS_FILE=""
 MOCK_CURRENT_CLIENT="client-1"
 MOCK_CURRENT_SESSION="workspace"
 MOCK_CURRENT_WINDOW="main"
 MOCK_PREVIOUS_SESSION=""
 MOCK_PREVIOUS_WINDOW=""
+MOCK_WINDOW_WIDTH="200"
+MOCK_WINDOW_HEIGHT="50"
+MOCK_ORIGIN_WIDTH="200"
+MOCK_ORIGIN_HEIGHT="50"
+MOCK_CURRENT_PATH="/tmp/mock-cwd"
+MOCK_PANE_COMMAND="bash"
 
 test_setup() {
 	TEST_TMP_DIR="$(mktemp -d)"
@@ -27,17 +35,27 @@ test_setup() {
 	MOCK_TMUX_WINDOWS_FILE="$TEST_TMP_DIR/windows.txt"
 	MOCK_TMUX_BINDINGS_FILE="$TEST_TMP_DIR/bindings.txt"
 	MOCK_TMUX_POPUPS_FILE="$TEST_TMP_DIR/popups.txt"
+	MOCK_TMUX_ENV_FILE="$TEST_TMP_DIR/env.txt"
+	MOCK_TMUX_SENDKEYS_FILE="$TEST_TMP_DIR/sendkeys.log"
 	: >"$MOCK_TMUX_LOG"
 	: >"$MOCK_TMUX_OPTIONS_FILE"
 	: >"$MOCK_TMUX_SESSIONS_FILE"
 	: >"$MOCK_TMUX_WINDOWS_FILE"
 	: >"$MOCK_TMUX_BINDINGS_FILE"
 	: >"$MOCK_TMUX_POPUPS_FILE"
+	: >"$MOCK_TMUX_ENV_FILE"
+	: >"$MOCK_TMUX_SENDKEYS_FILE"
 	MOCK_CURRENT_CLIENT="client-1"
 	MOCK_CURRENT_SESSION="workspace"
 	MOCK_CURRENT_WINDOW="main"
 	MOCK_PREVIOUS_SESSION=""
 	MOCK_PREVIOUS_WINDOW=""
+	MOCK_WINDOW_WIDTH="200"
+	MOCK_WINDOW_HEIGHT="50"
+	MOCK_ORIGIN_WIDTH="200"
+	MOCK_ORIGIN_HEIGHT="50"
+	MOCK_CURRENT_PATH="/tmp/mock-cwd"
+	MOCK_PANE_COMMAND="bash"
 }
 
 test_teardown() {
@@ -193,6 +211,39 @@ mock_options_dump() {
 		[ -n "$line" ] || continue
 		printf '%s %s\n' "${line%%=*}" "${line#*=}"
 	done <"$MOCK_TMUX_OPTIONS_FILE"
+}
+
+mock_env_get() {
+	local key line value
+	key="$1"
+	value=""
+	while IFS= read -r line; do
+		case "$line" in
+			"$key="*)
+				value="${line#"$key="}"
+				;;
+		esac
+	done <"$MOCK_TMUX_ENV_FILE"
+	printf '%s\n' "$value"
+}
+
+mock_env_set() {
+	local key value temp_file line
+	key="$1"
+	value="$2"
+	temp_file="$TEST_TMP_DIR/env.tmp"
+	: >"$temp_file"
+	while IFS= read -r line; do
+		case "$line" in
+			"$key="*)
+				;;
+			*)
+				printf '%s\n' "$line" >>"$temp_file"
+				;;
+		esac
+	done <"$MOCK_TMUX_ENV_FILE"
+	[ -n "$value" ] && printf '%s=%s\n' "$key" "$value" >>"$temp_file"
+	mv "$temp_file" "$MOCK_TMUX_ENV_FILE"
 }
 
 mock_popup_get_field() {
@@ -361,6 +412,9 @@ notiv_tmux_cmd_mock() {
 				mock_option_set "$2" "$3"
 				return 0
 			fi
+			if [ "$1" = "-t" ]; then
+				return 0
+			fi
 			;;
 		has-session)
 			if [ "$1" = "-t" ] && mock_session_exists "$2"; then
@@ -369,8 +423,19 @@ notiv_tmux_cmd_mock() {
 			return 1
 			;;
 		list-windows)
-			if [ "$1" = "-t" ] && [ "$3" = "-F" ] && [ "$4" = '#{window_name}' ]; then
-				mock_windows_list "$2"
+			if [ "$1" = "-t" ]; then
+				if [ "${3:-}" = "-F" ]; then
+					mock_windows_list "$2"
+				else
+					local line
+					while IFS= read -r line; do
+						case "$line" in
+							"$2|"*)
+								printf '%s\n' "$line"
+								;;
+						esac
+					done <"$MOCK_TMUX_WINDOWS_FILE"
+				fi
 				return 0
 			fi
 			;;
@@ -490,37 +555,76 @@ notiv_tmux_cmd_mock() {
 			printf '%s\n' "$popup_args" >>"$TEST_TMP_DIR/display-popup.log"
 			return 0
 			;;
-		display-message)
-			if [ "$1" = "-p" ] && [ "$2" = '#{client_name}' ]; then
-				printf '%s\n' "$MOCK_CURRENT_CLIENT"
-				return 0
-			fi
-			if [ "$1" = "-p" ] && [ "$2" = "-c" ]; then
-				if [ "$4" = '#{popup_active}' ]; then
-					printf '%s\n' "$(mock_popup_get_field "$3" "active")"
+		display-message|display)
+			local target has_target
+			target=""
+			has_target=0
+			if [ "$1" = "-p" ] && [ "$2" = "-t" ]; then
+				target="$3"
+				has_target=1
+				shift 3 || true
+			elif [ "$1" = "-p" ] && [ "$2" = "-c" ]; then
+				target="$3"
+				has_target=1
+				shift 3 || true
+				if [ "$1" = "#{popup_active}" ]; then
+					printf '%s\n' "$(mock_popup_get_field "$target" "active")"
 					return 0
 				fi
-				if [ "$4" = '#{popup_title}' ]; then
-					printf '%s\n' "$(mock_popup_get_field "$3" "title")"
+				if [ "$1" = "#{popup_title}" ]; then
+					printf '%s\n' "$(mock_popup_get_field "$target" "title")"
 					return 0
 				fi
-			fi
-			if [ "$1" = "-p" ] && [ "$2" = '#{session_name}:#{window_name}' ]; then
-				printf '%s:%s\n' "$MOCK_CURRENT_SESSION" "$MOCK_CURRENT_WINDOW"
-				return 0
-			fi
-			if [ "$1" = "-p" ] && [ "$2" = '#{session_name}' ]; then
-				printf '%s\n' "$MOCK_CURRENT_SESSION"
-				return 0
-			fi
-			if [ "$1" = "-p" ] && [ "$2" = '#{window_name}' ]; then
-				printf '%s\n' "$MOCK_CURRENT_WINDOW"
-				return 0
 			fi
 			if [ "$1" = "-p" ]; then
-				printf '%s\n' "$2"
-				return 0
+				shift || true
 			fi
+			case "$1" in
+				'#{client_name}')
+					printf '%s\n' "$MOCK_CURRENT_CLIENT"
+					return 0
+					;;
+				'#{session_name}')
+					printf '%s\n' "$MOCK_CURRENT_SESSION"
+					return 0
+					;;
+				'#{window_name}')
+					printf '%s\n' "$MOCK_CURRENT_WINDOW"
+					return 0
+					;;
+				'#{session_name}:#{window_name}')
+					printf '%s:%s\n' "$MOCK_CURRENT_SESSION" "$MOCK_CURRENT_WINDOW"
+					return 0
+					;;
+				'#{window_width}')
+					if [ "$has_target" = "1" ]; then
+						printf '%s\n' "$MOCK_ORIGIN_WIDTH"
+					else
+						printf '%s\n' "$MOCK_WINDOW_WIDTH"
+					fi
+					return 0
+					;;
+				'#{window_height}')
+					if [ "$has_target" = "1" ]; then
+						printf '%s\n' "$MOCK_ORIGIN_HEIGHT"
+					else
+						printf '%s\n' "$MOCK_WINDOW_HEIGHT"
+					fi
+					return 0
+					;;
+				'#{pane_current_path}')
+					printf '%s\n' "$MOCK_CURRENT_PATH"
+					return 0
+					;;
+				'#{pane_current_command}')
+					printf '%s\n' "$MOCK_PANE_COMMAND"
+					return 0
+					;;
+				*)
+					printf '%s\n' "$1"
+					return 0
+					;;
+			esac
 			return 1
 			;;
 		switch-client)
@@ -560,6 +664,82 @@ notiv_tmux_cmd_mock() {
 			printf 'detached\n' >>"$TEST_TMP_DIR/detach-client.log"
 			return 0
 			;;
+		setenv)
+			if [ "$1" = "-g" ]; then
+				shift
+				if [ "$1" = "-u" ]; then
+					shift
+					mock_env_set "$1" ""
+				else
+					mock_env_set "$1" "$2"
+				fi
+				return 0
+			fi
+			if [ "$1" = "-gu" ]; then
+				shift
+				mock_env_set "$1" ""
+				return 0
+			fi
+			;;
+		showenv)
+			if [ "$1" = "-g" ]; then
+				shift
+				local env_val
+				env_val="$(mock_env_get "$1")"
+				if [ -n "$env_val" ]; then
+					printf '%s=%s\n' "$1" "$env_val"
+				fi
+				return 0
+			fi
+			;;
+		movew)
+			if [ "$1" = "-t" ]; then
+				local target_session temp_file line window_data
+				target_session="$2"
+				temp_file="$TEST_TMP_DIR/windows.tmp"
+				: >"$temp_file"
+
+				while IFS= read -r line; do
+					case "$line" in
+						"$MOCK_CURRENT_SESSION|$MOCK_CURRENT_WINDOW|"*)
+							window_data="${line#"$MOCK_CURRENT_SESSION|"}"
+							printf '%s|%s\n' "$target_session" "$window_data" >>"$temp_file"
+							;;
+						*)
+							printf '%s\n' "$line" >>"$temp_file"
+							;;
+					esac
+				done <"$MOCK_TMUX_WINDOWS_FILE"
+
+				mv "$temp_file" "$MOCK_TMUX_WINDOWS_FILE"
+				mock_session_add "$target_session"
+				mock_session_remove_if_empty "$MOCK_CURRENT_SESSION"
+				MOCK_CURRENT_SESSION="$target_session"
+				return 0
+			fi
+			;;
+		send-keys)
+			local target keys
+			target=""
+			keys=""
+			while [ "$#" -gt 0 ]; do
+				case "$1" in
+					-R)
+						shift || true
+						;;
+					-t)
+						target="$2"
+						shift 2 || true
+						;;
+					*)
+						keys="$keys $1"
+						shift || true
+						;;
+				esac
+			done
+			printf '%s|%s\n' "$target" "$keys" >>"$MOCK_TMUX_SENDKEYS_FILE"
+			return 0
+			;;
 		bind-key)
 			local table key command
 			table="prefix"
@@ -567,6 +747,10 @@ notiv_tmux_cmd_mock() {
 				table="$2"
 				key="$3"
 				shift 3 || true
+			elif [ "$1" = "-n" ]; then
+				table="root"
+				key="$2"
+				shift 2 || true
 			else
 				key="$1"
 				shift || true
@@ -581,6 +765,9 @@ notiv_tmux_cmd_mock() {
 			if [ "$1" = "-T" ]; then
 				table="$2"
 				key="$3"
+			elif [ "$1" = "-n" ]; then
+				table="root"
+				key="$2"
 			else
 				key="$1"
 			fi

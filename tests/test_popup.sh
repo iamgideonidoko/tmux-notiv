@@ -7,7 +7,14 @@ set -euo pipefail
 test_popup_opens_requested_context() {
 	test_setup
 	notiv_popup_open "notes" "/tmp/notes" "scratch-notiv:notes" "80%" "70%"
-	assert_file_contains "display-popup -c client-1 -d /tmp/notes -x C -y C -w 80% -h 70% -T notiv:notes -E" "$MOCK_TMUX_LOG" "opening a context should create an auto-closing popup on the current client"
+	assert_file_contains "display-popup" "$MOCK_TMUX_LOG" "opening a context should create a popup"
+	assert_file_contains "-c client-1" "$MOCK_TMUX_LOG" "popup should target the current client"
+	assert_file_contains "-d /tmp/notes" "$MOCK_TMUX_LOG" "popup should use the context directory"
+	assert_file_contains "-w 80%" "$MOCK_TMUX_LOG" "popup should use the configured width"
+	assert_file_contains "-h 70%" "$MOCK_TMUX_LOG" "popup should use the configured height"
+	assert_file_contains "-S fg=magenta" "$MOCK_TMUX_LOG" "popup should apply the border color"
+	assert_file_contains "-s fg=blue" "$MOCK_TMUX_LOG" "popup should apply the text color"
+	assert_file_contains "-b rounded" "$MOCK_TMUX_LOG" "popup should apply the border style"
 	assert_file_contains "attach-session -t scratch-notiv:notes" "$TEST_TMP_DIR/display-popup.log" "popup should attach to the requested context window"
 	test_teardown
 }

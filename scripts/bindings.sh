@@ -8,14 +8,6 @@ NOTIV_SCRIPT_BINDINGS_SOURCED=1
 # shellcheck source=./registry.sh
 . "$(CDPATH= cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/registry.sh"
 
-notiv_config_key_list() {
-	notiv_get_option "@notiv_key_list" "l"
-}
-
-notiv_config_key_picker() {
-	notiv_get_option "@notiv_key_picker" "p"
-}
-
 notiv_bindings_cli_command() {
 	local action context_name command_string
 	action="$1"
@@ -51,13 +43,12 @@ notiv_bindings_current_keys() {
 $(notiv_registry_list)
 EOF
 
-	keys="$(notiv_bindings_record_key "$keys" "$(notiv_config_key_list)")"
-	keys="$(notiv_bindings_record_key "$keys" "$(notiv_config_key_picker)")"
+	keys="$(notiv_bindings_record_key "$keys" "$(notiv_config_key_menu)")"
 	printf '%s\n' "$keys"
 }
 
 notiv_bindings_clear() {
-	local cached_keys current_keys all_keys old_ifs key
+	local cached_keys current_keys all_keys old_ifs key prefix_key
 	cached_keys="$(notiv_get_option "@notiv_bound_keys" "")"
 	current_keys="$(notiv_bindings_current_keys)"
 	all_keys="$cached_keys"
@@ -71,7 +62,8 @@ notiv_bindings_clear() {
 	done
 	IFS="$old_ifs"
 
-	tmux_cmd unbind-key -T prefix n >/dev/null 2>&1 || true
+	prefix_key="$(notiv_config_key_prefix)"
+	tmux_cmd unbind-key -T prefix "$prefix_key" >/dev/null 2>&1 || true
 
 	IFS=','
 	for key in $all_keys; do
@@ -107,13 +99,13 @@ notiv_bindings_bind_action() {
 }
 
 notiv_bindings() {
-	local bound_keys list_key picker_key record context_name context_key
+	local bound_keys menu_key prefix_key record context_name context_key
 	bound_keys=""
-	list_key="$(notiv_config_key_list)"
-	picker_key="$(notiv_config_key_picker)"
+	menu_key="$(notiv_config_key_menu)"
+	prefix_key="$(notiv_config_key_prefix)"
 
 	notiv_bindings_clear
-	tmux_cmd bind-key -T prefix n switch-client -T notiv >/dev/null
+	tmux_cmd bind-key -T prefix "$prefix_key" switch-client -T notiv >/dev/null
 
 	while IFS= read -r record; do
 		[ -n "$record" ] || continue
@@ -129,13 +121,8 @@ notiv_bindings() {
 $(notiv_registry_list)
 EOF
 
-	notiv_bindings_bind_action "$list_key" "list"
-	bound_keys="$(notiv_bindings_record_key "$bound_keys" "$list_key")"
-
-	if [ -n "$(notiv_registry_names)" ]; then
-		notiv_bindings_bind_action "$picker_key" "picker"
-		bound_keys="$(notiv_bindings_record_key "$bound_keys" "$picker_key")"
-	fi
+	notiv_bindings_bind_action "$menu_key" "menu"
+	bound_keys="$(notiv_bindings_record_key "$bound_keys" "$menu_key")"
 
 	notiv_set_option "@notiv_bound_keys" "$bound_keys"
 }
